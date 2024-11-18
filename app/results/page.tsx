@@ -6,16 +6,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MapPin, Clock, Route } from "lucide-react";
 
+interface Location {
+  order: number;
+  location: string;
+  type: string;
+  estimatedTime: string;
+  priority?: number;
+  passengerName?: string;
+}
+
 interface OptimizedRoute {
   totalDistance: string;
   totalTime: string;
-  waypoints: Array<{
-    order: number;
-    location: string;
-    type: string;
-    estimatedTime: string;
-    priority?: number;
-  }>;
+  waypoints: Location[];
   googleMapsUrl: string;
   appleMapsUrl: string;
 }
@@ -41,6 +44,23 @@ export default function ResultsPage() {
     );
   }
 
+  const passengers = optimizedRoute.waypoints.reduce((acc, waypoint) => {
+    if (waypoint.passengerName && !acc.includes(waypoint.passengerName)) {
+      acc.push(waypoint.passengerName);
+    }
+    return acc;
+  }, [] as string[]);
+
+  const getPassengerTimes = (passengerName: string) => {
+    const pickup = optimizedRoute.waypoints.find(
+      (w) => w.passengerName === passengerName && w.type === "pickup"
+    );
+    const dropoff = optimizedRoute.waypoints.find(
+      (w) => w.passengerName === passengerName && w.type === "dropoff"
+    );
+    return { pickup: pickup?.estimatedTime, dropoff: dropoff?.estimatedTime };
+  };
+
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-4xl font-bold mb-6 text-center">
@@ -61,7 +81,22 @@ export default function ResultsPage() {
               <p>Total Time: {optimizedRoute.totalTime}</p>
             </div>
           </div>
-          <h2 className="text-xl font-semibold mt-4 mb-2">Waypoints:</h2>
+          <h2 className="text-xl font-semibold mt-4 mb-2">
+            Passenger Summary:
+          </h2>
+          <ul className="space-y-4">
+            {passengers.map((passengerName, index) => {
+              const times = getPassengerTimes(passengerName);
+              return (
+                <li key={index} className="bg-gray-100 p-4 rounded-lg">
+                  <h3 className="font-semibold text-lg">{passengerName}</h3>
+                  <p>Estimated Pickup: {times.pickup || "N/A"}</p>
+                  <p>Estimated Drop-off: {times.dropoff || "N/A"}</p>
+                </li>
+              );
+            })}
+          </ul>
+          <h2 className="text-xl font-semibold mt-6 mb-2">Detailed Route:</h2>
           <ul className="space-y-2">
             {optimizedRoute.waypoints.map((waypoint, index) => (
               <li
@@ -80,6 +115,11 @@ export default function ResultsPage() {
                   {waypoint.priority && (
                     <p className="text-sm text-gray-600">
                       Priority: {waypoint.priority}
+                    </p>
+                  )}
+                  {waypoint.passengerName && (
+                    <p className="text-sm text-gray-600">
+                      Passenger: {waypoint.passengerName}
                     </p>
                   )}
                 </div>

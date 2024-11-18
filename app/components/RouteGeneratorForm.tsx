@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trash2, Plus, MapPin, Navigation } from "lucide-react";
+import { Trash2, Plus, Navigation } from "lucide-react";
 
 interface Location {
   address: string;
@@ -30,9 +30,15 @@ interface FormData {
   passengers: Passenger[];
 }
 
+interface RouteGeneratorFormProps {
+  initialMode: "multi" | "waypoint";
+}
+
 const libraries = ["places"];
 
-export default function RouteGeneratorForm() {
+export default function RouteGeneratorForm({
+  initialMode,
+}: RouteGeneratorFormProps) {
   const [formData, setFormData] = useState<FormData>({
     currentLocation: "",
     passengers: [
@@ -165,7 +171,7 @@ export default function RouteGeneratorForm() {
       setIsSubmitting(true);
       try {
         const apiRequestData = {
-          mode: "multi",
+          mode: initialMode,
           locations: formData.passengers.flatMap((passenger) => [
             {
               address: passenger.pickup.address,
