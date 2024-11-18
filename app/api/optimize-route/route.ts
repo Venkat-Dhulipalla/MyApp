@@ -1,98 +1,87 @@
 import { NextResponse } from "next/server";
 
-interface Location {
-  address: string;
-  priority?: number;
-}
-
 interface RouteRequest {
   mode: "multi" | "waypoint";
-  locations: Location[];
   startPoint?: string;
   endPoint?: string;
-}
-
-function generateRandomTime() {
-  const hours = Math.floor(Math.random() * 24)
-    .toString()
-    .padStart(2, "0");
-  const minutes = Math.floor(Math.random() * 60)
-    .toString()
-    .padStart(2, "0");
-  return `${hours}:${minutes}`;
+  waypoints?: Array<{ location: string }>;
+  locations?: Array<{
+    address: string;
+    priority: number;
+    type: "start" | "pickup" | "dropoff";
+    passengerName: string | null;
+  }>;
 }
 
 export async function POST(request: Request) {
-  const data: RouteRequest = await request.json();
+  try {
+    const data: RouteRequest = await request.json();
 
-  // Here you would typically call the Google Maps API to optimize the route
-  // For this example, we'll just return a mock response with estimated times
+    if (data.mode === "waypoint") {
+      // Handle waypoint mode
+      const allPoints = [
+        { address: data.startPoint!, type: "start" },
+        ...(data.waypoints || []).map((w) => ({
+          address: w.location,
+          type: "waypoint",
+        })),
+        { address: data.endPoint!, type: "end" },
+      ];
 
-  let sortedLocations: Location[];
-  if (data.mode === "multi") {
-    sortedLocations = [...data.locations].sort(
-      (a, b) => (a.priority || 0) - (b.priority || 0)
+      const optimizedRoute = {
+        totalDistance: "15.6 km",
+        totalTime: "25 mins",
+        waypoints: allPoints.map((point, index) => ({
+          order: index + 1,
+          location: point.address,
+          type: point.type,
+          estimatedTime: "5 mins",
+        })),
+        googleMapsUrl: `https://www.google.com/maps/dir/${allPoints
+          .map((point) => encodeURIComponent(point.address))
+          .join("/")}`,
+        appleMapsUrl: `http://maps.apple.com/?daddr=${allPoints
+          .map((point) => encodeURIComponent(point.address))
+          .join("+to:")}`,
+      };
+
+      return NextResponse.json(optimizedRoute);
+    } else {
+      // Handle multi mode (existing logic)
+      const sortedLocations = [...(data.locations || [])].sort(
+        (a, b) => a.priority - b.priority
+      );
+
+      const optimizedRoute = {
+        totalDistance: "15.6 km",
+        totalTime: "25 mins",
+        waypoints: sortedLocations.map((loc, index) => ({
+          order: index + 1,
+          location: loc.address,
+          type: loc.type,
+          estimatedTime: "5 mins",
+          priority: loc.priority,
+          passengerName: loc.passengerName,
+        })),
+        googleMapsUrl: `https://www.google.com/maps/dir/${sortedLocations
+          .map((loc) => encodeURIComponent(loc.address))
+          .join("/")}`,
+        appleMapsUrl: `http://maps.apple.com/?daddr=${sortedLocations
+          .map((loc) => encodeURIComponent(loc.address))
+          .join("+to:")}`,
+      };
+
+      return NextResponse.json(optimizedRoute);
+    }
+  } catch (error) {
+    console.error("API Error:", error);
+    return NextResponse.json(
+      {
+        message:
+          error instanceof Error ? error.message : "Internal server error",
+        error: true,
+      },
+      { status: 500 }
     );
-  } else {
-    sortedLocations = data.locations;
   }
-
-  const mockOptimizedRoute = {
-    totalDistance: "75 km",
-    totalTime: "2 hours 15 minutes",
-    waypoints: [
-      ...(data.mode === "waypoint"
-        ? [
-            {
-              order: 0,
-              location: data.startPoint!,
-              type: "start",
-              estimatedTime: generateRandomTime(),
-            },
-          ]
-        : []),
-      ...sortedLocations.map((location, index) => ({
-        order: data.mode === "waypoint" ? index + 1 : index,
-        location: location.address,
-        type:
-          data.mode === "multi"
-            ? index % 2 === 0
-              ? "pickup"
-              : "dropoff"
-            : "waypoint",
-        estimatedTime: generateRandomTime(),
-        priority: location.priority,
-      })),
-      ...(data.mode === "waypoint"
-        ? [
-            {
-              order: sortedLocations.length + 1,
-              location: data.endPoint!,
-              type: "end",
-              estimatedTime: generateRandomTime(),
-            },
-          ]
-        : []),
-    ],
-    googleMapsUrl: `https://www.google.com/maps/dir/${
-      data.mode === "waypoint"
-        ? `${encodeURIComponent(data.startPoint!)}/${sortedLocations
-            .map((loc) => encodeURIComponent(loc.address))
-            .join("/")}/${encodeURIComponent(data.endPoint!)}`
-        : sortedLocations
-            .map((loc) => encodeURIComponent(loc.address))
-            .join("/")
-    }`,
-    appleMapsUrl: `http://maps.apple.com/?${
-      data.mode === "waypoint"
-        ? `saddr=${encodeURIComponent(data.startPoint!)}&daddr=${sortedLocations
-            .map((loc) => encodeURIComponent(loc.address))
-            .join("+to:")}&daddr=${encodeURIComponent(data.endPoint!)}`
-        : `daddr=${sortedLocations
-            .map((loc) => encodeURIComponent(loc.address))
-            .join("+to:")}`
-    }`,
-  };
-
-  return NextResponse.json(mockOptimizedRoute);
 }
