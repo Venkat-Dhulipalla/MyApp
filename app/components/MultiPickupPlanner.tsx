@@ -21,9 +21,15 @@ interface Stop {
   passengerName: string;
 }
 
+interface Passenger {
+  name: string;
+  pickup: { address: string; priority: number };
+  dropoff: { address: string; priority: number };
+}
+
 interface FormData {
   currentLocation: string;
-  stops: Stop[];
+  passengers: Passenger[];
 }
 
 const libraries = ["places"];
@@ -173,17 +179,28 @@ export default function MultiPickupPlanner() {
 
     const autocomplete = new google.maps.places.Autocomplete(
       document.getElementById(id) as HTMLInputElement,
-      { types: ["geocode"] }
+      {
+        types: ["establishment", "geocode"],
+        fields: ["formatted_address", "geometry", "name", "place_id"],
+        componentRestrictions: { country: "us" }, // Optional: restrict to US
+      }
     );
     autocompleteRefs.current[id] = autocomplete;
 
     autocomplete.addListener("place_changed", () => {
       const place = autocomplete.getPlace();
       if (place.formatted_address) {
+        const address =
+          place.name && place.formatted_address.includes(place.name)
+            ? place.formatted_address
+            : place.name
+            ? `${place.name}, ${place.formatted_address}`
+            : place.formatted_address;
+
         if (id === "currentLocation") {
           setFormData((prev) => ({
             ...prev,
-            currentLocation: place.formatted_address,
+            currentLocation: address,
           }));
         } else {
           const [type, index] = id.split("-");
@@ -196,7 +213,7 @@ export default function MultiPickupPlanner() {
                   ...passenger,
                   [type]: {
                     ...passenger[type as "pickup" | "dropoff"],
-                    address: place.formatted_address!,
+                    address: address,
                   },
                 };
               }
