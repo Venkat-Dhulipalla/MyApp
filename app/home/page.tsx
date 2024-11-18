@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { UserButton } from "@clerk/nextjs";
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   try {
     const { userId } = await auth();

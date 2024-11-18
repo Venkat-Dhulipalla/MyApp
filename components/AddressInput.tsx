@@ -17,7 +17,6 @@ const libraries = ["places"];
 
 export function AddressInput({
   id,
-  label,
   value,
   onChange,
   error,
@@ -96,10 +95,7 @@ export function AddressInput({
   };
 
   return (
-    <div className="space-y-2">
-      <label htmlFor={id} className="text-sm font-medium">
-        {label}
-      </label>
+    <div className="w-full">
       <Input
         ref={inputRef}
         id={id}

@@ -1,9 +1,11 @@
 "use client";
 
+import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import RouteGeneratorForm from "../components/RouteGeneratorForm";
 
-export default function PlannerPage() {
+// Move your main planner content to a separate component
+function PlannerContent() {
   const searchParams = useSearchParams();
   const mode = searchParams.get("mode") as "multi" | "waypoint";
 
@@ -18,5 +20,14 @@ export default function PlannerPage() {
         <RouteGeneratorForm initialMode={mode} />
       </div>
     </div>
+  );
+}
+
+// Main page component
+export default function PlannerPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <PlannerContent />
+    </Suspense>
   );
 }

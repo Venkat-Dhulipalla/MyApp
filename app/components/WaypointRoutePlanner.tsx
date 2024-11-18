@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useLoadScript } from "@react-google-maps/api";
 import { Button } from "@/components/ui/button";
 import { AddressInput } from "@/components/AddressInput";
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Trash2, Plus, Navigation } from "lucide-react";
+import { FormErrors } from "@/app/types";
 
 interface Waypoint {
   location: string;
@@ -25,15 +26,20 @@ interface FormData {
   waypoints: Waypoint[];
 }
 
-const libraries = ["places"];
-
+type GoogleMapsLibraries = (
+  | "places"
+  | "geometry"
+  | "drawing"
+  | "visualization"
+)[];
+const libraries: GoogleMapsLibraries = ["places"];
 export default function WaypointRoutePlanner() {
   const [formData, setFormData] = useState<FormData>({
     startPoint: "",
     endPoint: "",
     waypoints: [{ location: "", priority: 1 }],
   });
-  const [errors, setErrors] = useState<any>({});
+  const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
@@ -46,17 +52,7 @@ export default function WaypointRoutePlanner() {
     [key: string]: google.maps.places.Autocomplete | null;
   }>({});
 
-  useEffect(() => {
-    if (isLoaded) {
-      initializeAutocomplete("startPoint");
-      initializeAutocomplete("endPoint");
-      formData.waypoints.forEach((_, index) => {
-        initializeAutocomplete(`waypoint-${index}`);
-      });
-    }
-  }, [isLoaded, formData.waypoints.length]);
-
-  const initializeAutocomplete = (id: string) => {
+  const initializeAutocomplete = useCallback((id: string) => {
     if (!document.getElementById(id)) return;
 
     const autocomplete = new google.maps.places.Autocomplete(
@@ -81,7 +77,17 @@ export default function WaypointRoutePlanner() {
         }
       }
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    if (isLoaded) {
+      initializeAutocomplete("startPoint");
+      initializeAutocomplete("endPoint");
+      formData.waypoints.forEach((_, index) => {
+        initializeAutocomplete(`waypoint-${index}`);
+      });
+    }
+  }, [isLoaded, formData.waypoints, initializeAutocomplete]);
 
   const getCurrentLocation = () => {
     setIsLoadingLocation(true);
@@ -117,7 +123,7 @@ export default function WaypointRoutePlanner() {
   };
 
   const validateForm = () => {
-    const newErrors: any = {};
+    const newErrors: FormErrors = {};
     if (!formData.startPoint) {
       newErrors.startPoint = "Start point is required";
     }

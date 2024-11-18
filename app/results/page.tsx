@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ interface OptimizedRoute {
   appleMapsUrl: string;
 }
 
-export default function ResultsPage() {
+function ResultsContent() {
   const [optimizedRoute, setOptimizedRoute] = useState<OptimizedRoute | null>(
     null
   );
@@ -147,5 +147,13 @@ export default function ResultsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function ResultsPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ResultsContent />
+    </Suspense>
   );
 }
