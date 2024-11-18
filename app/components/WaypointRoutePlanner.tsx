@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useLoadScript } from "@react-google-maps/api";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { AddressInput } from "@/components/AddressInput";
 import {
   Select,
   SelectContent,
@@ -226,16 +226,18 @@ export default function WaypointRoutePlanner() {
                   Start Point
                 </label>
                 <div className="flex gap-2">
-                  <Input
+                  <AddressInput
                     id="startPoint"
+                    label="Start Point"
                     value={formData.startPoint}
-                    onChange={(e) =>
+                    onChange={(value) =>
                       setFormData((prev) => ({
                         ...prev,
-                        startPoint: e.target.value,
+                        startPoint: value,
                       }))
                     }
-                    className={errors.startPoint ? "border-red-500" : ""}
+                    error={errors.startPoint}
+                    placeholder="Enter start point"
                   />
                   <Button
                     type="button"
@@ -264,16 +266,18 @@ export default function WaypointRoutePlanner() {
                 >
                   End Point
                 </label>
-                <Input
+                <AddressInput
                   id="endPoint"
+                  label="End Point"
                   value={formData.endPoint}
-                  onChange={(e) =>
+                  onChange={(value) =>
                     setFormData((prev) => ({
                       ...prev,
-                      endPoint: e.target.value,
+                      endPoint: value,
                     }))
                   }
-                  className={errors.endPoint ? "border-red-500" : ""}
+                  error={errors.endPoint}
+                  placeholder="Enter end point"
                 />
                 {errors.endPoint && (
                   <p className="mt-1 text-sm text-red-500">{errors.endPoint}</p>
@@ -311,17 +315,15 @@ export default function WaypointRoutePlanner() {
                           >
                             Location
                           </label>
-                          <Input
+                          <AddressInput
                             id={`waypoint-${index}`}
+                            label={`Waypoint ${index + 1}`}
                             value={waypoint.location}
-                            onChange={(e) =>
-                              handleWaypointChange(index, e.target.value)
+                            onChange={(value) =>
+                              handleWaypointChange(index, value)
                             }
-                            className={
-                              errors[`waypoints.${index}`]
-                                ? "border-red-500"
-                                : ""
-                            }
+                            error={errors[`waypoints.${index}`]}
+                            placeholder="Enter location"
                           />
                           {errors[`waypoints.${index}`] && (
                             <p className="mt-1 text-sm text-red-500">

@@ -13,13 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Trash2, Plus, Navigation } from "lucide-react";
-
-interface Stop {
-  location: string;
-  type: "pickup" | "dropoff";
-  priority: number;
-  passengerName: string;
-}
+import { AddressInput } from "@/components/AddressInput";
 
 interface Passenger {
   name: string;
@@ -32,7 +26,18 @@ interface FormData {
   passengers: Passenger[];
 }
 
+interface AddressInputProps {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  error?: string;
+  placeholder?: string;
+}
+
 const libraries = ["places"];
+
+// Add the URL parsing functions
 
 export default function MultiPickupPlanner() {
   const [formData, setFormData] = useState<FormData>({
@@ -181,45 +186,31 @@ export default function MultiPickupPlanner() {
       document.getElementById(id) as HTMLInputElement,
       {
         types: ["establishment", "geocode"],
-        fields: ["formatted_address", "geometry", "name", "place_id"],
-        componentRestrictions: { country: "us" }, // Optional: restrict to US
+        fields: ["formatted_address", "name"],
       }
     );
+
     autocompleteRefs.current[id] = autocomplete;
 
     autocomplete.addListener("place_changed", () => {
       const place = autocomplete.getPlace();
-      if (place.formatted_address) {
-        const address =
-          place.name && place.formatted_address.includes(place.name)
-            ? place.formatted_address
-            : place.name
-            ? `${place.name}, ${place.formatted_address}`
-            : place.formatted_address;
+      const address =
+        place.name && place.formatted_address
+          ? `${place.name}, ${place.formatted_address}`
+          : place.formatted_address;
 
+      if (address) {
         if (id === "currentLocation") {
-          setFormData((prev) => ({
-            ...prev,
-            currentLocation: address,
-          }));
+          setFormData((prev) => ({ ...prev, currentLocation: address }));
         } else {
           const [type, index] = id.split("-");
           const idx = parseInt(index);
-          setFormData((prev) => ({
-            ...prev,
-            passengers: prev.passengers.map((passenger, i) => {
-              if (i === idx) {
-                return {
-                  ...passenger,
-                  [type]: {
-                    ...passenger[type as "pickup" | "dropoff"],
-                    address: address,
-                  },
-                };
-              }
-              return passenger;
-            }),
-          }));
+          handleLocationChange(
+            idx,
+            type as "pickup" | "dropoff",
+            "address",
+            address
+          );
         }
       }
     });
@@ -320,8 +311,9 @@ export default function MultiPickupPlanner() {
 
   // Clean up autocomplete references when component unmounts
   useEffect(() => {
+    const currentRefs = autocompleteRefs.current;
     return () => {
-      Object.values(autocompleteRefs.current).forEach((autocomplete) => {
+      Object.values(currentRefs).forEach((autocomplete) => {
         if (autocomplete) {
           google.maps.event.clearInstanceListeners(autocomplete);
         }
@@ -338,43 +330,26 @@ export default function MultiPickupPlanner() {
         <CardContent>
           <div className="space-y-6">
             {/* Current Location */}
-            <div className="space-y-2">
-              <label
-                htmlFor="currentLocation"
-                className="block text-sm font-medium text-gray-700"
+            <div className="flex gap-2">
+              <AddressInput
+                id="currentLocation"
+                label="Current Location"
+                value={formData.currentLocation}
+                onChange={(value) =>
+                  setFormData((prev) => ({ ...prev, currentLocation: value }))
+                }
+                error={errors.currentLocation}
+                placeholder="Enter your current location"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={getCurrentLocation}
+                disabled={isLoadingLocation}
+                className="mt-6"
               >
-                Current Location
-              </label>
-              <div className="flex gap-2">
-                <Input
-                  id="currentLocation"
-                  value={formData.currentLocation}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      currentLocation: e.target.value,
-                    }))
-                  }
-                  className={errors.currentLocation ? "border-red-500" : ""}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={getCurrentLocation}
-                  disabled={isLoadingLocation}
-                >
-                  {isLoadingLocation ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent" />
-                  ) : (
-                    <Navigation className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-              {errors.currentLocation && (
-                <p className="mt-1 text-sm text-red-500">
-                  {errors.currentLocation}
-                </p>
-              )}
+                <Navigation className="h-4 w-4" />
+              </Button>
             </div>
 
             {/* Passengers */}
@@ -423,28 +398,21 @@ export default function MultiPickupPlanner() {
                         </div>
 
                         <div className="grid gap-4 sm:grid-cols-2">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                              Pickup Location
-                            </label>
-                            <Input
-                              id={`pickup-${index}`}
-                              value={passenger.pickup.address}
-                              onChange={(e) =>
-                                handleLocationChange(
-                                  index,
-                                  "pickup",
-                                  "address",
-                                  e.target.value
-                                )
-                              }
-                              className={
-                                errors[`passengers.${index}.pickup`]
-                                  ? "border-red-500"
-                                  : ""
-                              }
-                            />
-                          </div>
+                          <AddressInput
+                            id={`pickup-${index}`}
+                            label="Pickup Location"
+                            value={passenger.pickup.address}
+                            onChange={(value) =>
+                              handleLocationChange(
+                                index,
+                                "pickup",
+                                "address",
+                                value
+                              )
+                            }
+                            error={errors[`passengers.${index}.pickup`]}
+                            placeholder="Enter pickup location"
+                          />
 
                           <div>
                             <label className="block text-sm font-medium text-gray-700">
@@ -477,28 +445,21 @@ export default function MultiPickupPlanner() {
                             </Select>
                           </div>
 
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                              Drop-off Location
-                            </label>
-                            <Input
-                              id={`dropoff-${index}`}
-                              value={passenger.dropoff.address}
-                              onChange={(e) =>
-                                handleLocationChange(
-                                  index,
-                                  "dropoff",
-                                  "address",
-                                  e.target.value
-                                )
-                              }
-                              className={
-                                errors[`passengers.${index}.dropoff`]
-                                  ? "border-red-500"
-                                  : ""
-                              }
-                            />
-                          </div>
+                          <AddressInput
+                            id={`dropoff-${index}`}
+                            label="Drop-off Location"
+                            value={passenger.dropoff.address}
+                            onChange={(value: string) =>
+                              handleLocationChange(
+                                index,
+                                "dropoff",
+                                "address",
+                                value
+                              )
+                            }
+                            error={errors[`passengers.${index}.dropoff`]}
+                            placeholder="Enter drop-off location"
+                          />
 
                           <div>
                             <label className="block text-sm font-medium text-gray-700">
