@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useLoadScript } from "@react-google-maps/api";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AddressInput } from "@/components/AddressInput";
 import {
@@ -26,13 +25,6 @@ interface FormData {
   waypoints: Waypoint[];
 }
 
-type GoogleMapsLibraries = (
-  | "places"
-  | "geometry"
-  | "drawing"
-  | "visualization"
-)[];
-const libraries: GoogleMapsLibraries = ["places"];
 export default function WaypointRoutePlanner() {
   const [formData, setFormData] = useState<FormData>({
     startPoint: "",
@@ -43,93 +35,38 @@ export default function WaypointRoutePlanner() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
-  const { isLoaded } = useLoadScript({
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!,
-    libraries: libraries as any,
-  });
-
-  const autocompleteRefs = useRef<{
-    [key: string]: google.maps.places.Autocomplete | null;
-  }>({});
-
-  const initializeAutocomplete = useCallback((id: string) => {
-    if (!document.getElementById(id)) return;
-
-    const autocomplete = new google.maps.places.Autocomplete(
-      document.getElementById(id) as HTMLInputElement,
-      { types: ["geocode"] }
-    );
-    autocompleteRefs.current[id] = autocomplete;
-
-    autocomplete.addListener("place_changed", () => {
-      const place = autocomplete.getPlace();
-      if (place.formatted_address) {
-        if (id === "startPoint" || id === "endPoint") {
-          setFormData((prev) => ({ ...prev, [id]: place.formatted_address! }));
-        } else {
-          const index = parseInt(id.split("-")[1]);
-          setFormData((prev) => ({
-            ...prev,
-            waypoints: prev.waypoints.map((wp, i) =>
-              i === index ? { ...wp, location: place.formatted_address! } : wp
-            ),
-          }));
-        }
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    if (isLoaded) {
-      initializeAutocomplete("startPoint");
-      initializeAutocomplete("endPoint");
-      formData.waypoints.forEach((_, index) => {
-        initializeAutocomplete(`waypoint-${index}`);
-      });
-    }
-  }, [isLoaded, formData.waypoints, initializeAutocomplete]);
-
-  const getCurrentLocation = () => {
+  const getCurrentLocation = async () => {
     setIsLoadingLocation(true);
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          try {
-            const response = await fetch(
-              `https://maps.googleapis.com/maps/api/geocode/json?latlng=${position.coords.latitude},${position.coords.longitude}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
-            );
-            const data = await response.json();
-            if (data.results[0]) {
-              setFormData((prev) => ({
-                ...prev,
-                startPoint: data.results[0].formatted_address,
-              }));
-            }
-          } catch (error) {
-            console.error("Error getting address:", error);
-          } finally {
-            setIsLoadingLocation(false);
-          }
-        },
-        (error) => {
-          console.error("Error getting location:", error);
-          setIsLoadingLocation(false);
+    try {
+      const position = await new Promise<GeolocationPosition>(
+        (resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject);
         }
       );
-    } else {
+
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${position.coords.latitude},${position.coords.longitude}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}`
+      );
+      const data = await response.json();
+
+      if (data.results[0]) {
+        setFormData((prev) => ({
+          ...prev,
+          startPoint: data.results[0].formatted_address,
+        }));
+      }
+    } catch (error) {
+      console.error("Error getting location:", error);
+      alert("Could not get current location. Please enter address manually.");
+    } finally {
       setIsLoadingLocation(false);
-      alert("Geolocation is not supported by your browser");
     }
   };
 
   const validateForm = () => {
     const newErrors: FormErrors = {};
-    if (!formData.startPoint) {
-      newErrors.startPoint = "Start point is required";
-    }
-    if (!formData.endPoint) {
-      newErrors.endPoint = "End point is required";
-    }
+    if (!formData.startPoint) newErrors.startPoint = "Start point is required";
+    if (!formData.endPoint) newErrors.endPoint = "End point is required";
     formData.waypoints.forEach((waypoint, index) => {
       if (!waypoint.location) {
         newErrors[`waypoints.${index}`] = "Waypoint location is required";
@@ -141,62 +78,38 @@ export default function WaypointRoutePlanner() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (validateForm()) {
-      setIsSubmitting(true);
-      try {
-        const response = await fetch("/api/optimize-route", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            mode: "waypoint",
-            startPoint: formData.startPoint,
-            endPoint: formData.endPoint,
-            waypoints: formData.waypoints.map((wp) => ({
-              location: wp.location,
-            })),
-          }),
-        });
+    if (!validateForm()) return;
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || "Failed to optimize route");
-        }
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/optimize-route", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "waypoint",
+          startPoint: formData.startPoint,
+          endPoint: formData.endPoint,
+          waypoints: formData.waypoints,
+        }),
+      });
 
-        const result = await response.json();
-        const params = new URLSearchParams();
-        params.append("routeData", JSON.stringify(result));
-        window.location.href = `/results?${params.toString()}`;
-      } catch (error) {
-        console.error("Error:", error);
-        alert(
-          error instanceof Error
-            ? error.message
-            : "An unexpected error occurred"
-        );
-      } finally {
-        setIsSubmitting(false);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to optimize route");
       }
+
+      const result = await response.json();
+      const params = new URLSearchParams();
+      params.append("routeData", JSON.stringify(result));
+      window.location.href = `/results?${params.toString()}`;
+    } catch (error) {
+      console.error("Error:", error);
+      alert(
+        error instanceof Error ? error.message : "An unexpected error occurred"
+      );
+    } finally {
+      setIsSubmitting(false);
     }
-  };
-
-  const handleWaypointChange = (index: number, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      waypoints: prev.waypoints.map((wp, i) =>
-        i === index ? { ...wp, location: value } : wp
-      ),
-    }));
-  };
-
-  const handlePriorityChange = (index: number, value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      waypoints: prev.waypoints.map((wp, i) =>
-        i === index ? { ...wp, priority: parseInt(value) } : wp
-      ),
-    }));
   };
 
   const addWaypoint = () => {
@@ -213,7 +126,14 @@ export default function WaypointRoutePlanner() {
     }));
   };
 
-  if (!isLoaded) return <div>Loading...</div>;
+  const handlePriorityChange = (index: number, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      waypoints: prev.waypoints.map((wp, i) =>
+        i === index ? { ...wp, priority: parseInt(value) } : wp
+      ),
+    }));
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -225,22 +145,16 @@ export default function WaypointRoutePlanner() {
           <div className="space-y-6">
             <div className="space-y-4">
               <div>
-                <label
-                  htmlFor="startPoint"
-                  className="block text-sm font-medium text-gray-700"
-                >
+                <label className="block text-sm font-medium text-gray-700">
                   Start Point
                 </label>
                 <div className="flex gap-2">
                   <AddressInput
                     id="startPoint"
-                    label="Start Point"
                     value={formData.startPoint}
+                    label="Start Point"
                     onChange={(value) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        startPoint: value,
-                      }))
+                      setFormData((prev) => ({ ...prev, startPoint: value }))
                     }
                     error={errors.startPoint}
                     placeholder="Enter start point"
@@ -258,43 +172,29 @@ export default function WaypointRoutePlanner() {
                     )}
                   </Button>
                 </div>
-                {errors.startPoint && (
-                  <p className="mt-1 text-sm text-red-500">
-                    {errors.startPoint}
-                  </p>
-                )}
               </div>
 
               <div>
-                <label
-                  htmlFor="endPoint"
-                  className="block text-sm font-medium text-gray-700"
-                >
+                <label className="block text-sm font-medium text-gray-700">
                   End Point
                 </label>
                 <AddressInput
                   id="endPoint"
-                  label="End Point"
                   value={formData.endPoint}
+                  label="End Point"
                   onChange={(value) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      endPoint: value,
-                    }))
+                    setFormData((prev) => ({ ...prev, endPoint: value }))
                   }
                   error={errors.endPoint}
                   placeholder="Enter end point"
                 />
-                {errors.endPoint && (
-                  <p className="mt-1 text-sm text-red-500">{errors.endPoint}</p>
-                )}
               </div>
             </div>
 
             <div className="space-y-4">
               <h3 className="font-medium">Waypoints</h3>
               {formData.waypoints.map((waypoint, index) => (
-                <Card key={index} className="border-2">
+                <Card key={index}>
                   <CardContent className="pt-6">
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
@@ -312,32 +212,27 @@ export default function WaypointRoutePlanner() {
                           </Button>
                         )}
                       </div>
-
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div>
-                          <label
-                            htmlFor={`waypoint-${index}`}
-                            className="block text-sm font-medium text-gray-700"
-                          >
+                          <label className="block text-sm font-medium text-gray-700">
                             Location
                           </label>
                           <AddressInput
                             id={`waypoint-${index}`}
-                            label={`Waypoint ${index + 1}`}
                             value={waypoint.location}
+                            label="Location"
                             onChange={(value) =>
-                              handleWaypointChange(index, value)
+                              setFormData((prev) => ({
+                                ...prev,
+                                waypoints: prev.waypoints.map((wp, i) =>
+                                  i === index ? { ...wp, location: value } : wp
+                                ),
+                              }))
                             }
                             error={errors[`waypoints.${index}`]}
                             placeholder="Enter location"
                           />
-                          {errors[`waypoints.${index}`] && (
-                            <p className="mt-1 text-sm text-red-500">
-                              {errors[`waypoints.${index}`]}
-                            </p>
-                          )}
                         </div>
-
                         <div>
                           <label className="block text-sm font-medium text-gray-700">
                             Priority

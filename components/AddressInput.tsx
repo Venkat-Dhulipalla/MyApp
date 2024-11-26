@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { useLoadScript } from "@react-google-maps/api";
 import { Input } from "@/components/ui/input";
 
@@ -24,6 +24,8 @@ export function AddressInput({
 }: AddressInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const [isAutocompleteInitialized, setIsAutocompleteInitialized] =
+    useState(false);
 
   const { isLoaded } = useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!,
@@ -31,7 +33,7 @@ export function AddressInput({
   });
 
   useEffect(() => {
-    if (!isLoaded || !inputRef.current) return;
+    if (!isLoaded || !inputRef.current || isAutocompleteInitialized) return;
 
     try {
       autocompleteRef.current = new google.maps.places.Autocomplete(
@@ -42,18 +44,20 @@ export function AddressInput({
       autocompleteRef.current.addListener("place_changed", () => {
         const place = autocompleteRef.current?.getPlace();
         if (place?.formatted_address) {
-          onChange(place.formatted_address);
+          onChange(place.formatted_address); // Update parent state with the formatted address
         }
       });
+
+      setIsAutocompleteInitialized(true);
     } catch (error) {
       console.error("Error initializing autocomplete:", error);
     }
-  }, [isLoaded, onChange]);
+  }, [isLoaded, isAutocompleteInitialized, onChange]);
 
   const handlePaste = async (e: React.ClipboardEvent<HTMLInputElement>) => {
     const pastedText = e.clipboardData.getData("text");
-    console.log("Paste event triggered with text:", pastedText);
 
+    // Validate URL
     if (
       pastedText.includes("maps.app.goo.gl") ||
       pastedText.includes("goo.gl/maps") ||
@@ -73,23 +77,18 @@ export function AddressInput({
         });
 
         const data = await response.json();
-        console.log("Response from parse-map-url:", data);
 
         if (response.ok && data.address) {
           onChange(data.address);
         } else {
           console.error("Error:", data.error);
+          alert("Could not extract address from URL. Please enter manually.");
           onChange("");
-          alert(
-            "Could not get address from URL. Please try entering it manually."
-          );
         }
       } catch (error) {
         console.error("Error processing URL:", error);
+        alert("Failed to process URL. Please enter manually.");
         onChange("");
-        alert(
-          "Error processing URL. Please try entering the address manually."
-        );
       }
     }
   };
