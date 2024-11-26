@@ -3,17 +3,17 @@
 import React, { useRef, useEffect, useState } from "react";
 import { useLoadScript } from "@react-google-maps/api";
 import { Input } from "@/components/ui/input";
+import { MAPS_CONFIG, libraries } from "@/lib/maps-config";
 
 interface AddressInputProps {
   id: string;
-  label: string;
+  label?: string;
   value: string;
   onChange: (value: string) => void;
   error?: string;
   placeholder?: string;
+  region?: string; // ISO Alpha-2 country code for restriction
 }
-
-const libraries = ["places"];
 
 export function AddressInput({
   id,
@@ -21,6 +21,7 @@ export function AddressInput({
   onChange,
   error,
   placeholder,
+  region = MAPS_CONFIG.defaultRegion,
 }: AddressInputProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
@@ -38,13 +39,22 @@ export function AddressInput({
     try {
       autocompleteRef.current = new google.maps.places.Autocomplete(
         inputRef.current,
-        { types: ["geocode"] }
+        {
+          types: MAPS_CONFIG.types as any,
+          fields: MAPS_CONFIG.fields as any,
+          componentRestrictions: region ? { country: region } : undefined,
+        }
       );
 
       autocompleteRef.current.addListener("place_changed", () => {
         const place = autocompleteRef.current?.getPlace();
-        if (place?.formatted_address) {
-          onChange(place.formatted_address); // Update parent state with the formatted address
+        const address =
+          place?.name && place?.formatted_address
+            ? `${place.name}, ${place.formatted_address}`
+            : place?.formatted_address;
+
+        if (address) {
+          onChange(address);
         }
       });
 
@@ -52,7 +62,7 @@ export function AddressInput({
     } catch (error) {
       console.error("Error initializing autocomplete:", error);
     }
-  }, [isLoaded, isAutocompleteInitialized, onChange]);
+  }, [isLoaded, isAutocompleteInitialized, onChange, region]);
 
   const handlePaste = async (e: React.ClipboardEvent<HTMLInputElement>) => {
     const pastedText = e.clipboardData.getData("text");

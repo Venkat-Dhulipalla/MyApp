@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState } from "react";
 import { useLoadScript } from "@react-google-maps/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Trash2, Plus, Navigation } from "lucide-react";
-import { FormErrors, AutocompleteRefs } from "@/app/types";
+import { FormErrors } from "@/app/types";
+import { libraries } from "@/lib/maps-config";
 
 interface Passenger {
   name: string;
@@ -27,17 +28,6 @@ interface FormData {
   currentLocation: string;
   passengers: Passenger[];
 }
-
-type GoogleMapsLibraries = (
-  | "places"
-  | "geometry"
-  | "drawing"
-  | "visualization"
-)[];
-
-const libraries: GoogleMapsLibraries = ["places"];
-
-// Add the URL parsing functions
 
 export default function MultiPickupPlanner() {
   const [formData, setFormData] = useState<FormData>({
@@ -54,59 +44,10 @@ export default function MultiPickupPlanner() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
-  const { isLoaded } = useLoadScript({
+  useLoadScript({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!,
-    libraries: libraries as any,
+    libraries: libraries,
   });
-
-  const autocompleteRefs = useRef<AutocompleteRefs>({});
-
-  const initializeAutocomplete = useCallback((id: string) => {
-    if (!document.getElementById(id)) return;
-
-    const autocomplete = new google.maps.places.Autocomplete(
-      document.getElementById(id) as HTMLInputElement,
-      {
-        types: ["establishment", "geocode"],
-        fields: ["formatted_address", "name"],
-      }
-    );
-
-    autocompleteRefs.current[id] = autocomplete;
-
-    autocomplete.addListener("place_changed", () => {
-      const place = autocomplete.getPlace();
-      const address =
-        place.name && place.formatted_address
-          ? `${place.name}, ${place.formatted_address}`
-          : place.formatted_address;
-
-      if (address) {
-        if (id === "currentLocation") {
-          setFormData((prev) => ({ ...prev, currentLocation: address }));
-        } else {
-          const [type, index] = id.split("-");
-          const idx = parseInt(index);
-          handleLocationChange(
-            idx,
-            type as "pickup" | "dropoff",
-            "address",
-            address
-          );
-        }
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    if (isLoaded) {
-      initializeAutocomplete("currentLocation");
-      formData.passengers.forEach((_, index) => {
-        initializeAutocomplete(`pickup-${index}`);
-        initializeAutocomplete(`dropoff-${index}`);
-      });
-    }
-  }, [isLoaded, formData.passengers, initializeAutocomplete]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -116,9 +57,6 @@ export default function MultiPickupPlanner() {
     }
 
     formData.passengers.forEach((passenger, index) => {
-      if (!passenger.name?.trim()) {
-        newErrors[`passengers.${index}.name`] = "Passenger name is required";
-      }
       if (!passenger.pickup.address?.trim()) {
         newErrors[`passengers.${index}.pickup`] = "Pickup location is required";
       }
@@ -307,18 +245,6 @@ export default function MultiPickupPlanner() {
     }));
   };
 
-  // Clean up autocomplete references when component unmounts
-  useEffect(() => {
-    const currentRefs = autocompleteRefs.current;
-    return () => {
-      Object.values(currentRefs).forEach((autocomplete) => {
-        if (autocomplete) {
-          google.maps.event.clearInstanceListeners(autocomplete);
-        }
-      });
-    };
-  }, []);
-
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <Card>
@@ -344,6 +270,7 @@ export default function MultiPickupPlanner() {
                     }
                     error={errors.currentLocation}
                     placeholder="Enter your current location"
+                    region="us"
                   />
                 </div>
                 <Button
@@ -383,7 +310,7 @@ export default function MultiPickupPlanner() {
 
                       <div className="space-y-2">
                         <label className="block text-sm font-medium text-gray-700">
-                          Passenger Name
+                          Passenger Name (Optional)
                         </label>
                         <Input
                           value={passenger.name}
@@ -398,111 +325,103 @@ export default function MultiPickupPlanner() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="col-span-2 space-y-2">
-                          <label className="block text-sm font-medium text-gray-700">
-                            Pickup Location
-                          </label>
-                          <AddressInput
-                            id={`pickup-${index}`}
-                            label="Pickup Location"
-                            value={passenger.pickup.address}
-                            onChange={(value) =>
-                              handleLocationChange(
-                                index,
-                                "pickup",
-                                "address",
-                                value
-                              )
-                            }
-                            error={errors[`passengers.${index}.pickup`]}
-                            placeholder="Enter pickup location"
-                          />
+                      <div className="space-y-4">
+                        <div>
+                          <div className="md:grid md:grid-cols-[1fr,auto] md:gap-4">
+                            <div className="mb-2 md:mb-0">
+                              <label>Pickup Location</label>
+                              <AddressInput
+                                id={`pickup-${index}`}
+                                label="Pickup Location"
+                                value={passenger.pickup.address}
+                                onChange={(value) =>
+                                  handleLocationChange(
+                                    index,
+                                    "pickup",
+                                    "address",
+                                    value
+                                  )
+                                }
+                                error={errors[`passengers.${index}.pickup`]}
+                                placeholder="Enter pickup location"
+                                region="us"
+                              />
+                            </div>
+                            <div className="w-24">
+                              <label>Priority</label>
+                              <Select
+                                value={passenger.pickup.priority.toString()}
+                                onValueChange={(value) =>
+                                  handleLocationChange(
+                                    index,
+                                    "pickup",
+                                    "priority",
+                                    parseInt(value)
+                                  )
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="1" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[1, 2, 3, 4, 5].map((n) => (
+                                    <SelectItem key={n} value={n.toString()}>
+                                      {n}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
                         </div>
 
-                        <div className="space-y-2">
-                          <label className="block text-sm font-medium text-gray-700">
-                            Pickup Priority
-                          </label>
-                          <Select
-                            value={passenger.pickup.priority.toString()}
-                            onValueChange={(value) =>
-                              handleLocationChange(
-                                index,
-                                "pickup",
-                                "priority",
-                                parseInt(value)
-                              )
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Priority 1" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {[1, 2, 3, 4, 5].map((priority) => (
-                                <SelectItem
-                                  key={priority}
-                                  value={priority.toString()}
-                                >
-                                  Priority {priority}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="col-span-2 space-y-2">
-                          <label className="block text-sm font-medium text-gray-700">
-                            Drop-off Location
-                          </label>
-                          <AddressInput
-                            id={`dropoff-${index}`}
-                            label="Drop-off Location"
-                            value={passenger.dropoff.address}
-                            onChange={(value) =>
-                              handleLocationChange(
-                                index,
-                                "dropoff",
-                                "address",
-                                value
-                              )
-                            }
-                            error={errors[`passengers.${index}.dropoff`]}
-                            placeholder="Enter drop-off location"
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <label className="block text-sm font-medium text-gray-700">
-                            Drop-off Priority
-                          </label>
-                          <Select
-                            value={passenger.dropoff.priority.toString()}
-                            onValueChange={(value) =>
-                              handleLocationChange(
-                                index,
-                                "dropoff",
-                                "priority",
-                                parseInt(value)
-                              )
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Priority 1" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {[1, 2, 3, 4, 5].map((priority) => (
-                                <SelectItem
-                                  key={priority}
-                                  value={priority.toString()}
-                                >
-                                  Priority {priority}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <div>
+                          <div className="md:grid md:grid-cols-[1fr,auto] md:gap-4">
+                            <div className="mb-2 md:mb-0">
+                              <label>Drop-off Location</label>
+                              <AddressInput
+                                id={`dropoff-${index}`}
+                                label="Drop-off Location"
+                                value={passenger.dropoff.address}
+                                onChange={(value) =>
+                                  handleLocationChange(
+                                    index,
+                                    "dropoff",
+                                    "address",
+                                    value
+                                  )
+                                }
+                                error={errors[`passengers.${index}.dropoff`]}
+                                placeholder="Enter drop-off location"
+                                region="us"
+                              />
+                            </div>
+                            <div className="w-24">
+                              <label>Priority</label>
+                              <Select
+                                value={passenger.dropoff.priority.toString()}
+                                onValueChange={(value) =>
+                                  handleLocationChange(
+                                    index,
+                                    "dropoff",
+                                    "priority",
+                                    parseInt(value)
+                                  )
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="1" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {[1, 2, 3, 4, 5].map((n) => (
+                                    <SelectItem key={n} value={n.toString()}>
+                                      {n}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>

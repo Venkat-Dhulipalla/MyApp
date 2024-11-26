@@ -151,13 +151,14 @@ export default function WaypointRoutePlanner() {
                 <div className="flex gap-2">
                   <AddressInput
                     id="startPoint"
-                    value={formData.startPoint}
                     label="Start Point"
+                    value={formData.startPoint}
                     onChange={(value) =>
                       setFormData((prev) => ({ ...prev, startPoint: value }))
                     }
                     error={errors.startPoint}
                     placeholder="Enter start point"
+                    region="us"
                   />
                   <Button
                     type="button"
@@ -180,13 +181,14 @@ export default function WaypointRoutePlanner() {
                 </label>
                 <AddressInput
                   id="endPoint"
-                  value={formData.endPoint}
                   label="End Point"
+                  value={formData.endPoint}
                   onChange={(value) =>
                     setFormData((prev) => ({ ...prev, endPoint: value }))
                   }
                   error={errors.endPoint}
                   placeholder="Enter end point"
+                  region="us"
                 />
               </div>
             </div>
@@ -231,6 +233,7 @@ export default function WaypointRoutePlanner() {
                             }
                             error={errors[`waypoints.${index}`]}
                             placeholder="Enter location"
+                            region="us"
                           />
                         </div>
                         <div>
