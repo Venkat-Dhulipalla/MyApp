@@ -9,6 +9,10 @@ export default function LandingPage() {
       <div className="container mx-auto flex-grow px-4">
         {/* Header */}
         <header className="flex h-20 items-center justify-between">
+          <meta
+            name="google-site-verification"
+            content="586A1DSI1uyAX2Qu9Xzq1YQ0RlQfVWuNLU3mKez0rmQ"
+          />
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-bold text-primary">SmartRoute</h1>
           </div>
